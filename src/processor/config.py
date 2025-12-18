@@ -1,11 +1,17 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    kafka_broker: str = "localhost:9092"
-    topic_source: str = "urls.fetched"  # Отсюда читаем
-    topic_result: str = "content.ready" # Сюда пишем
+    kafka_broker: str
+    topic_source: str = "urls.fetched"
+    topic_result: str = "content.ready"
     
-    # Фейковый User-Agent, чтобы сайты не думали, что мы бот
-    user_agent: str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    # Новый ключ
+    openrouter_api_key: str
+    api_delay: float = 2.0
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 settings = Settings()

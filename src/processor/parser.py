@@ -1,25 +1,30 @@
-import httpx
-from bs4 import BeautifulSoup
+import trafilatura
 from config import settings
 
 async def fetch_text_from_url(url: str) -> str:
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        try:
-            headers = {"User-Agent": settings.user_agent}
-            response = await client.get(url, headers=headers, timeout=10.0)
-            response.raise_for_status()
-            
-            # Парсим HTML
-            soup = BeautifulSoup(response.text, "lxml")
-            
-            # Удаляем мусор (скрипты, стили)
-            for script in soup(["script", "style", "nav", "footer", "header"]):
-                script.extract()
-            
-            # Достаем текст. Ограничим 3000 символов, чтобы не забивать консоль
-            text = soup.get_text(separator="\n", strip=True)
-            return text[:3000] 
-            
-        except Exception as e:
-            print(f"Error fetching {url}: {e}")
+    try:
+        # Trafilatura умеет сама скачивать, но лучше скачаем и отдадим ей строку
+        downloaded = trafilatura.fetch_url(url)
+        
+        if downloaded is None:
             return ""
+
+        # include_comments=False убирает комментарии (частый источник мусора)
+        # include_tables=False убирает таблицы (они ломают саммари)
+        text = trafilatura.extract(
+            downloaded, 
+            include_comments=False, 
+            include_tables=False,
+            include_images=False,
+            no_fallback=True
+        )
+        
+        if not text:
+            return ""
+            
+        # Возвращаем чистый текст
+        return text
+
+    except Exception as e:
+        print(f"Error extracting text from {url}: {e}")
+        return ""
