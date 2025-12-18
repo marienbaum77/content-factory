@@ -1,53 +1,43 @@
-name: Build and Push Docker Images
+name: Build and Push Microservices
 
-# Когда запускать? При пуше в ветку main
 on:
   push:
     branches: [ "main" ]
 
-# Что делать?
 jobs:
   build_and_push:
-    runs-on: ubuntu-latest # Используем сервер линукс
-    
+    runs-on: ubuntu-latest
+    strategy:
+      # === DevOps Magic: Матрица ===
+      # Этот блок запустит job 3 раза параллельно
+      matrix:
+        service: [collector, processor, publisher]
+
     steps:
-      # 1. Скачиваем твой код
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Логинимся в Docker Hub (используя секреты)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 3. Настраиваем QEMU и Buildx (нужны для сборки)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 4. Собираем и пушим COLLECTOR
-      - name: Build and push Collector
+      - name: Build and push ${{ matrix.service }}
         uses: docker/build-push-action@v5
         with:
-          context: . # Где лежит Dockerfile (в корне)
-          file: ./Dockerfile # Имя файла
-          push: true
-          # Тегируем образ: твой_логин/имя_сервиса:latest
-          tags: ${{ secrets.DOCKER_USERNAME }}/content-collector:latest
-          # Чтобы запустился именно коллектор, переопределяем команду запуска
-          # (в Dockerfile у нас по дефолту CMD ["python", "src/collector/main.py"])
-          # Но лучше собрать один универсальный образ, а команду менять при запуске.
-          # Сейчас мы просто собираем образ с кодом.
-
-      # 5. Собираем и пушим PROCESSOR
-      # В нашем случае код везде одинаковый (Monorepo), отличаются только команды запуска.
-      # Поэтому мы можем собрать ОДИН образ "content-factory-core" и использовать его везде.
-      # Это сэкономит время и место. Давай сделаем так.
-      
-      - name: Build and push Core Image
-        uses: docker/build-push-action@v5
-        with:
+          # Контекст всегда корень, чтобы видеть папку src/
           context: .
+          # А вот Dockerfile берем динамически из матрицы
+          file: src/${{ matrix.service }}/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/content-factory-core:latest
+          # Теги тоже динамические
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/content-factory-${{ matrix.service }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/content-factory-${{ matrix.service }}:${{ github.sha }}
+          # Используем кэширование, чтобы сборка летала
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/content-factory-${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/content-factory-${{ matrix.service }}:buildcache,mode=max
