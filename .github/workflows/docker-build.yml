@@ -5,6 +5,24 @@ on:
     branches: [ "main" ]
 
 jobs:
+  lint:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.11'
+
+        - name: Install flake8
+          run: pip install flake8
+
+        - name: Run flake8
+          # Проверяем синтаксические ошибки (E9, F63, F7, F82)
+          # Если найдет — пайплайн упадет сразу
+          run: flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
   build_and_push:
     runs-on: ubuntu-latest
     strategy:
